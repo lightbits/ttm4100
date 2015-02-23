@@ -1,2 +1,2 @@
-# chatclient
-Cat client for TTM4100
+# chat
+TTM4100 project

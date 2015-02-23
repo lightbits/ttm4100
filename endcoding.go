@@ -58,7 +58,7 @@ func networkPackageToClientPack(b []byte) clientPackage{
 	fmt.Println(csvString)
 	return clientPack
 }
-
+ 
 
 
 func main() {

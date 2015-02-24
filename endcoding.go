@@ -5,93 +5,108 @@ import(
 	"time"
 	"encoding/json"
 	"log"
-	"bytes"
 )
 
-type clientPackage struct {
+type ClientPackage struct {
 	Request	string
 	Content 	string
 }
 
-type serverPackage struct {
+type ServerPackage struct {
 	Timestamp	time.Time
 	Sender 	string
 	Response	string
 	Content	string
 }
 
-func clientPackToNetworkPackage(pack clientPackage) []byte {
-	var csvBuffer bytes.Buffer
-	csvBuffer.WriteString("{")
-	csvBuffer.WriteString("´request´:")
-	csvBuffer.WriteString(pack.Request)
-	csvBuffer.WriteString(",´content´:")
-	csvBuffer.WriteString(pack.Content)
-	csvBuffer.WriteString("}")
-	byteArr, err := json.Marshal(csvBuffer.String())
+func clientPackToNetworkPackage(pack ClientPackage) []byte {
+	byteArr, err := json.Marshal(pack)
 	if err != nil {log.Println(err)}
 	return byteArr
 }
 
-func serverPackToNetworkPackage(pack serverPackage) []byte {
-	var csvBuffer bytes.Buffer
-	csvBuffer.WriteString("{")
-	csvBuffer.WriteString("´timestamp´:")
-	csvBuffer.WriteString(pack.Timestamp.String())
-	csvBuffer.WriteString(",´sender´:")
-	csvBuffer.WriteString(pack.Sender)
-	csvBuffer.WriteString(",´response´:")
-	csvBuffer.WriteString(pack.Response)
-	csvBuffer.WriteString(",´content´:")
-	csvBuffer.WriteString(pack.Content)
-	csvBuffer.WriteString("}")
-	byteArr, err := json.Marshal(csvBuffer.String())
+func serverPackToNetworkPackage(pack ServerPackage) []byte {
+	byteArr, err := json.Marshal(pack) 
 	if err != nil {log.Println(err)}
 	return byteArr
 }
 
-func networkPackageToClientPack(b []byte) clientPackage{
-	var csvString string
-	err := json.Unmarshal(b[:], &csvString)
-	if (err != nil) {log.Println(err)}
-	var clientPack clientPackage
-	fmt.Println(csvString)
-	return clientPack
+func networkPackageToClientPack(byteArr []byte)(ClientPackage, error){
+	var ClientPack ClientPackage
+	err := json.Unmarshal(byteArr[:], &ClientPack)
+	//if (!validClientPack(ClientPack)){return nil, err}<--- Should this check be in this module?
+	return ClientPack, err
 }
- 
 
+func networkPackageToServerPack(byteArr []byte)(ServerPackage, error){
+	var ServerPack ServerPackage
+	err := json.Unmarshal(byteArr[:], &ServerPack)
+	//if (!validServerPack(ServerPack)){return nil, err} <--- Should this check be in this module?
+	return ServerPack, err
+}
+
+func validClientPack(p ClientPackage) bool {
+	if (p.Request != "login" && p.Request != "logout" && p.Request != "msg" && p.Request != "names" && p.Request != "help"){
+		return false
+	}
+	return true
+}
+
+func validServerPack(p ServerPackage) bool {
+	if (p.Response != "error" && p.Response!="info" && p.Response!="history" && p.Response!="message"){
+		return false
+	}
+	return true
+}
 
 func main() {
-	clientTestpackage	 := clientPackage{"login" , "eriklil"}
-	serverTestpackage := serverPackage{time.Now(), "gunnar", "message", "Hei, hvordan står det til. Hilsen Gunnar"}
+	ClientTestpackage	 := ClientPackage{"login" , "eriklil"}
+	ServerTestpackage := ServerPackage{time.Now(), "gunnar", "message", "Hei, hvordan står det til. Hilsen Gunnar"}
 
-	fmt.Println("Client Test Package:")
-	printClientPackage(clientTestpackage)
+	fmt.Println("----Client Test Package----")
+	printClientPackage(ClientTestpackage)
 	fmt.Println()
-	fmt.Println("Server Test Package")
-	printServerPackage(serverTestpackage)
-	fmt.Println()
-	fmt.Println("Ferdig!!!")
+	fmt.Println("----Server Test Package----")
+	printServerPackage(ServerTestpackage)
+	fmt.Println("-------------------------------------------------------")
 
-	b1 := clientPackToNetworkPackage(clientTestpackage)
+	b1 := clientPackToNetworkPackage(ClientTestpackage)
 	if (b1 != nil) {
-		fmt.Println("Alt gikk bra med clientTestpackage")
+		fmt.Println("Alt gikk bra med clientTestpackage encoding:", string(b1))
 	}
 
-	b2 := serverPackToNetworkPackage(serverTestpackage)
+	b2 := serverPackToNetworkPackage(ServerTestpackage)
 	if (b2 != nil) {
-		fmt.Println("Alt gikk bra med serverTestpackage")
+		fmt.Println("Alt gikk bra med serverTestpackage encoding:", string(b2))
 	}
 
-	_=networkPackageToClientPack(b1)
+	fmt.Println()
+
+	restoredClientPackage, err := networkPackageToClientPack(b1)
+	if(err != nil){
+		log.Println(err)
+	}else{
+		fmt.Println("Alt gikk bra med ClientTestpackage decoding:")
+		printClientPackage(restoredClientPackage)
+	}
+
+	fmt.Println()
+
+	restoredServerPackage, err := networkPackageToServerPack(b2)
+	if(err != nil){
+		log.Println(err)
+	}else{
+		fmt.Println("Alt gikk bra med ServerTestpackage decoding:")
+		printServerPackage(restoredServerPackage)
+	}
 }
 
-func printClientPackage(pack clientPackage){
+func printClientPackage(pack ClientPackage){
 	fmt.Println("Request = ",pack.Request)
 	fmt.Println("Content = ",pack.Content)
 }
 
-func printServerPackage(pack serverPackage){
+func printServerPackage(pack ServerPackage){
 	fmt.Println("Timestamp = ",pack.Timestamp)
 	fmt.Println("Sender = ", pack.Sender)
 	fmt.Println("Resonse = ", pack.Response)

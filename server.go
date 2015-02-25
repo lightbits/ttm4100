@@ -6,6 +6,7 @@ import (
     "net"
 )
 
+// TODO: Should this be configurable on startup?
 const SV_LISTEN_ADDRESS = "127.0.0.1:12345"
 
 func listenForIncomingConnections(incoming_connection chan *net.TCPConn) {
@@ -28,6 +29,7 @@ func listenForIncomingConnections(incoming_connection chan *net.TCPConn) {
     }
 }
 
+// TODO: This should contain the Request and Content fields
 type ClientPacket struct {
     Connection *net.TCPConn
     Content     string
@@ -35,28 +37,26 @@ type ClientPacket struct {
 
 func listenToClient(incoming_cl_packet chan ClientPacket, conn *net.TCPConn) {
     for {
-        buffer := make([]byte, 32)
-        _, err := conn.Read(buffer)
+        buffer := make([]byte, 1024)
+        bytes_read, err := conn.Read(buffer)
         if err != nil {
-            log.Fatal(err)
+            fmt.Println(conn.RemoteAddr(), "lost connection")
+            return
         }
-        incoming_cl_packet <- ClientPacket{conn, string(buffer)}
+        incoming_cl_packet <- ClientPacket{conn, string(buffer[:bytes_read])}
     }
 }
 
 func sendToClient(content string, conn *net.TCPConn) {
-    // TODO: Null-delimiting and/or fixed message length
-    // Currently just sending the content and hoping that
-    // the recipient gets the data in a single packet
     _, err := conn.Write([]byte(content))
     if err != nil {
         log.Fatal(err)
     }
 }
 
+// TODO: This actually belongs in the client, not the server
 func prettyPrintClientMessage(username string, content string) {
-    // This prints to the console with colored usernames!!
-    // (if your console supports colors, that is)
+    // This prints to the console with colored usernames
     fmt.Printf("\x1b[35m%s\x1b[0m said: %s\n", username, content)
 }
 
@@ -72,7 +72,7 @@ func main() {
     for {
         select {
             case conn := <- incoming_connection:
-                connections[conn] = "NoName"
+                connections[conn] = "" // Initial username
                 go listenToClient(incoming_cl_packet, conn)
                 fmt.Println(conn.RemoteAddr(), "connected")
 

@@ -11,11 +11,11 @@ import (
 func listenForMessages(incoming_message chan string, conn *net.TCPConn) {
     for {
         buffer := make([]byte, 1024)
-        _, err := conn.Read(buffer)
+        bytes_read, err := conn.Read(buffer)
         if err != nil {
             log.Fatal(err)
         }
-        incoming_message <- string(buffer)
+        incoming_message <- string(buffer[:bytes_read])
     }
 }
 
@@ -33,7 +33,7 @@ func listenForUserInput(user_input chan string) {
 
 func main() {
     // TODO: Take server address as user input?
-
+    // For now, use localhost
     remote, err := net.ResolveTCPAddr("tcp", "127.0.0.1:12345")
     if err != nil {
         log.Fatal(err)

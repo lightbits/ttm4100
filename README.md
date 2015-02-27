@@ -5,6 +5,11 @@ How to use client/server
 ------------------------
 1. go run server.go in one console
 2. go run client.go in another
+
+	2a. Write messages in the format /<request> <content>
+	2b. If no /<request> is given your input is interpreted
+	    to be a <msg> request.
+
 3. yayifications!
 
 Todo

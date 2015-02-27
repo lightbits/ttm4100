@@ -14,7 +14,7 @@ const SV_LISTEN_ADDRESS = "127.0.0.1:12345"
 //----ENCODING START
 type InternalClientPackage struct {
     Connection *net.TCPConn
-    Payload ClientPackage
+    Payload     ClientPackage
 }
 
 type ClientPackage struct {
@@ -24,9 +24,9 @@ type ClientPackage struct {
 
 type ServerPackage struct {
     Timestamp string
-    Sender string
-    Response string
-    Content string
+    Sender    string
+    Response  string
+    Content   string
 }
 
 func clientPackToNetworkPackage(pack ClientPackage) []byte {
@@ -36,7 +36,7 @@ func clientPackToNetworkPackage(pack ClientPackage) []byte {
 }
 
 func serverPackToNetworkPackage(pack ServerPackage) []byte {
-    byteArr, err := json.Marshal(pack) 
+    byteArr, err := json.Marshal(pack)
     if err != nil {log.Println(err)}
     return byteArr
 }
@@ -70,15 +70,15 @@ func validServerPack(p ServerPackage) bool {
 }
 
 func printClientPackage(pack ClientPackage){
-    fmt.Println("Request = ",pack.Request)
-    fmt.Println("Content = ",pack.Content)
+    fmt.Println("Request = ", pack.Request)
+    fmt.Println("Content = ", pack.Content)
 }
 
 func printServerPackage(pack ServerPackage){
-    fmt.Println("Timestamp = ",pack.Timestamp)
-    fmt.Println("Sender = ", pack.Sender)
-    fmt.Println("Resonse = ", pack.Response)
-    fmt.Println("Content = ",pack.Content)
+    fmt.Println("Timestamp = ", pack.Timestamp)
+    fmt.Println("Sender = ",    pack.Sender)
+    fmt.Println("Resonse = ",   pack.Response)
+    fmt.Println("Content = ",   pack.Content)
 }
 
 func getTime() string{
@@ -127,20 +127,12 @@ func sendToClient(sender, response, content string, conn *net.TCPConn) {
     }
 }
 
-// TODO: This actually belongs in the client, not the server
-func prettyPrintClientMessage(username string, content string) {
-    // This prints to the console with colored usernames
-    fmt.Printf("\x1b[35m%s\x1b[0m said: %s\n", username, content)
-}
-
 //----SUBFUNCTIONS END
 
 func main() {
-    connections                 := make(map[*net.TCPConn]string)
-    incoming_connection   := make(chan *net.TCPConn)
-    incoming_cl_packet     := make(chan InternalClientPackage)
-
-    //prettyPrintClientMessage("John doe", "Hey guys!")
+    connections         := make(map[*net.TCPConn]string)
+    incoming_connection := make(chan *net.TCPConn)
+    incoming_cl_packet  := make(chan InternalClientPackage)
 
     go listenForIncomingConnections(incoming_connection)
     fmt.Println("Ready for incoming connections. Bring it on!")

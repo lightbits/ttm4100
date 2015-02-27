@@ -7,6 +7,7 @@ import (
     "bufio"
     "os"
     "time"
+    "strings"
     "encoding/json"
 )
 
@@ -75,7 +76,7 @@ func listenForMessages(incoming_message chan ServerPackage, conn *net.TCPConn) {
 func listenForUserInput(user_input chan string) {
     reader := bufio.NewReader(os.Stdin)
     for {
-        fmt.Printf("Enter text: ")
+        fmt.Printf(">> ")
         line, _, err := reader.ReadLine()
         if err != nil {
             fmt.Println(err)
@@ -84,11 +85,44 @@ func listenForUserInput(user_input chan string) {
     }
 }
 
-func sendToServer(request, content string, conn *net.TCPConn) {
-    _, err := conn.Write(clientPackToNetworkPackage( ClientPackage{request, content} ))
+func sendToServer(payload ClientPackage, conn *net.TCPConn) {
+    _, err := conn.Write(clientPackToNetworkPackage(payload))
     if err != nil {
         log.Fatal(err)
     }
+}
+
+func parseUserInput(input string) ClientPackage {
+    request := ""
+    content := ""
+
+    /*
+    User input is of the form
+        /request content
+    If the /request field is not given,
+    we interpret the input as a <msg> payload
+    with content = input.
+    */
+    req_begin := strings.Index(input, "/")
+    if req_begin >= 0 {
+        req_end := strings.Index(input[req_begin:], " ")
+        if req_end > req_begin {
+            request = input[req_begin + 1 : req_end]
+            content = input[req_end + 1 :]
+        } else {
+            request = input[req_begin + 1 :]
+            content = ""
+        }
+    } else {
+        request = "msg"
+        content = input
+    }
+
+    return ClientPackage{request, content}
+}
+
+func prettyPrintClientMessage(username string, content string) {
+    fmt.Printf("\x1b[35m%s\x1b[0m said: %s\n", username, content)
 }
 
 func main() {
@@ -104,8 +138,9 @@ func main() {
         log.Fatal(err)
     }
     defer conn.Close()
-
     log.Println("Connected to", conn.RemoteAddr())
+
+    prettyPrintClientMessage("John doe", "Hey guys!")
 
     incoming_message := make(chan ServerPackage)
     go listenForMessages(incoming_message, conn)
@@ -116,22 +151,11 @@ func main() {
     for {
         select {
             case msg := <- incoming_message:
-                log.Println("Received message from server")
                 printServerPackage(msg)
 
             case input := <- user_input:
-                switch "input"{
-                case "login":
-                    sendToServer("login","",conn)
-                case "logout":
-                    sendToServer("logout","",conn)
-                case "msg":
-                    sendToServer("msg",input,conn)
-                case "names":
-                    sendToServer("names","",conn)
-                case "help":
-                    sendToServer("help", "",conn)
-            }
+                payload := parseUserInput(input)
+                sendToServer(payload, conn)
         }
     }
 }

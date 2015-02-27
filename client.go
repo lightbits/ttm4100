@@ -11,11 +11,6 @@ import (
 )
 
 //----ENCODING START
-type InternalClientPackage struct {
-    Connection *net.TCPConn
-    Payload ClientPackage
-}
-
 type ClientPackage struct {
     Request string
     Content string
@@ -34,31 +29,11 @@ func clientPackToNetworkPackage(pack ClientPackage) []byte {
     return byteArr
 }
 
-func serverPackToNetworkPackage(pack ServerPackage) []byte {
-    byteArr, err := json.Marshal(pack) 
-    if err != nil {log.Println(err)}
-    return byteArr
-}
-
-func networkPackageToClientPack(byteArr []byte) ClientPackage {
-    var ClientPack ClientPackage
-    err := json.Unmarshal(byteArr[:], &ClientPack)
-    if(err != nil) {log.Println(err)}
-    return ClientPack
-}
-
 func networkPackageToServerPack(byteArr []byte) ServerPackage {
     var ServerPack ServerPackage
     err := json.Unmarshal(byteArr[:], &ServerPack)
     if (err != nil) {log.Println(err)}
     return ServerPack
-}
-
-func validClientPack(p ClientPackage) bool {
-    if (p.Request != "login" && p.Request != "logout" && p.Request != "msg" && p.Request != "names" && p.Request != "help"){
-        return false
-    }
-    return true
 }
 
 func validServerPack(p ServerPackage) bool {
@@ -109,6 +84,13 @@ func listenForUserInput(user_input chan string) {
     }
 }
 
+func sendToServer(request, content string, conn *net.TCPConn) {
+    _, err := conn.Write(clientPackToNetworkPackage( ClientPackage{request, content} ))
+    if err != nil {
+        log.Fatal(err)
+    }
+}
+
 func main() {
     // TODO: Take server address as user input?
     // For now, use localhost
@@ -138,10 +120,18 @@ func main() {
                 printServerPackage(msg)
 
             case input := <- user_input:
-                _, err := conn.Write(clientPackToNetworkPackage(ClientPackage{"msg",input}))
-                if err != nil {
-                    log.Fatal(err)
-                }
+                switch "input"{
+                case "login":
+                    sendToServer("login","",conn)
+                case "logout":
+                    sendToServer("logout","",conn)
+                case "msg":
+                    sendToServer("msg",input,conn)
+                case "names":
+                    sendToServer("names","",conn)
+                case "help":
+                    sendToServer("help", "",conn)
+            }
         }
     }
 }

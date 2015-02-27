@@ -80,14 +80,14 @@ func printServerPackage(pack ServerPackage){
     fmt.Println("Resonse = ", pack.Response)
     fmt.Println("Content = ",pack.Content)
 }
-//-----ENCODING END
 
-//-----SUBFUNCTIONS START
 func getTime() string{
     const layout = "Jan 2, 2006 kl 02:00"
     return time.Now().Format(layout)
 }
+//-----ENCODING END
 
+//-----SUBFUNCTIONS START
 func listenForIncomingConnections(incoming_connection chan *net.TCPConn) {
     local, err := net.ResolveTCPAddr("tcp", SV_LISTEN_ADDRESS)
     if err != nil {
@@ -140,10 +140,10 @@ func main() {
     incoming_connection   := make(chan *net.TCPConn)
     incoming_cl_packet     := make(chan InternalClientPackage)
 
-    prettyPrintClientMessage("John doe", "Hey guys!")
+    //prettyPrintClientMessage("John doe", "Hey guys!")
 
     go listenForIncomingConnections(incoming_connection)
-
+    fmt.Println("Ready for incoming connections. Bring it on!")
     for {
         select {
             case conn := <- incoming_connection:

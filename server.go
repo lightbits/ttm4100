@@ -13,7 +13,7 @@ import (
 const SV_LISTEN_ADDRESS = "127.0.0.1:12345"
 
 func getTime() string{
-    const layout = "Jan 2, 2006 kl 02:00"
+    const layout = "Jan 2 15:04"
     return time.Now().Format(layout)
 }
 
@@ -58,7 +58,15 @@ func listenToClient(incoming_request chan IncomingClientRequest, conn *net.TCPCo
 
 func sendToClient(sender, response, content string, conn *net.TCPConn) {
     srv_struct := coding.ServerPackage{getTime(), sender, response, content}
-    net_packet := coding.ServerPackageToNetworkPacket(srv_struct)
+    net_packet := coding.ServerPackagesToNetworkPacket([]coding.ServerPackage{srv_struct})
+    _, err := conn.Write(net_packet)
+    if err != nil {
+        log.Fatal(err)
+    }
+}
+
+func sendHistoryToClient(history []coding.ServerPackage, conn *net.TCPConn) {
+    net_packet := coding.ServerPackagesToNetworkPacket(history)
     _, err := conn.Write(net_packet)
     if err != nil {
         log.Fatal(err)
@@ -70,16 +78,11 @@ type Connection struct {
     Username string
 }
 
-type MessageHistoric struct {
-    Username string
-    Message string
-}
-
 func main() {
     connections         := make(map[string]Connection)
     incoming_connection := make(chan *net.TCPConn)
     incoming_requests   := make(chan IncomingClientRequest)
-    message_history     := make([]MessageHistoric, 0)
+    message_history     := make([]coding.ServerPackage, 0)
 
     go listenForIncomingConnections(incoming_connection)
     fmt.Println("Ready for incoming connections. Bring it on!")
@@ -102,10 +105,7 @@ func main() {
                         connections[address] = Connection{socket, content}
                         sendToClient("server", "info", fmt.Sprintf("Your username is now %s", content), socket)
 
-                        // TODO: Fix this
-                        for _, h := range(message_history) {
-                            sendToClient(h.Username, "message", h.Message, socket)
-                        }
+                        sendHistoryToClient(message_history, socket)
 
                     case "logout":
                         sendToClient("server", "info", "Goodbye!", socket)
@@ -118,8 +118,7 @@ func main() {
                         if username == "" {
                             sendToClient("server", "error", "You must /login first.", socket)
                         } else {
-                            h := MessageHistoric{username, content}
-                            message_history = append(message_history, h)
+                            message_history = append(message_history, coding.ServerPackage{getTime(), username, "message", content})
 
                             for dst_address, connection := range(connections) {
                                 dst_socket := connection.Socket

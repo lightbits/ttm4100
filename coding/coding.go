@@ -1,8 +1,8 @@
 package coding
 
 import(
-	"encoding/json"
-	"log"
+    "encoding/json"
+    "log"
 )
 
 type ClientPackage struct {
@@ -23,7 +23,7 @@ func ClientPackageToNetworkPacket(pack ClientPackage) []byte {
     return byteArr
 }
 
-func ServerPackageToNetworkPacket(pack ServerPackage) []byte {
+func ServerPackagesToNetworkPacket(pack []ServerPackage) []byte {
     byteArr, err := json.Marshal(pack)
     if err != nil {log.Println(err)}
     return byteArr
@@ -36,9 +36,9 @@ func NetworkPacketToClientPackage(byteArr []byte) ClientPackage {
     return ClientPack
 }
 
-func NetworkPacketToServerPackage(byteArr []byte) ServerPackage {
-	log.Println(string(byteArr))
-    var ServerPack ServerPackage
+func NetworkPacketToServerPackages(byteArr []byte) []ServerPackage {
+    // log.Println(string(byteArr))
+    var ServerPack []ServerPackage
     err := json.Unmarshal(byteArr[:], &ServerPack)
     if (err != nil) {log.Println(err)}
     return ServerPack

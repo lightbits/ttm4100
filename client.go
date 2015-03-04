@@ -17,7 +17,10 @@ func listenForMessages(incoming_message chan coding.ServerPackage, conn *net.TCP
         if err != nil {
             log.Fatal(err)
         }
-        incoming_message <- coding.NetworkPacketToServerPackage(buffer[:bytes_read])
+        packages := coding.NetworkPacketToServerPackages(buffer[:bytes_read])
+        for _, p := range(packages) {
+            incoming_message <- p
+        }
     }
 }
 

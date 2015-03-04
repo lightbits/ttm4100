@@ -58,7 +58,7 @@ func listenToClient(incoming_request chan IncomingClientRequest, conn *net.TCPCo
 
 func sendToClient(sender, response, content string, conn *net.TCPConn) {
     srv_struct := coding.ServerPackage{getTime(), sender, response, content}
-    net_packet := coding.ServerPackagesToNetworkPacket([]coding.ServerPackage{srv_struct})
+    net_packet := coding.ServerPackageToNetworkPacket(srv_struct)
     _, err := conn.Write(net_packet)
     if err != nil {
         log.Fatal(err)

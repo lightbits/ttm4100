@@ -23,6 +23,12 @@ func ClientPackageToNetworkPacket(pack ClientPackage) []byte {
     return byteArr
 }
 
+func ServerPackageToNetworkPacket(pack ServerPackage) []byte {
+    byteArr, err := json.Marshal(pack)
+    if err != nil {log.Println(err)}
+    return byteArr
+}
+
 func ServerPackagesToNetworkPacket(pack []ServerPackage) []byte {
     byteArr, err := json.Marshal(pack)
     if err != nil {log.Println(err)}
@@ -37,9 +43,17 @@ func NetworkPacketToClientPackage(byteArr []byte) ClientPackage {
 }
 
 func NetworkPacketToServerPackages(byteArr []byte) []ServerPackage {
-    // log.Println(string(byteArr))
-    var ServerPack []ServerPackage
+    var ServerPack ServerPackage
     err := json.Unmarshal(byteArr[:], &ServerPack)
-    if (err != nil) {log.Println(err)}
-    return ServerPack
+    // Oh boy...
+    if (err != nil) {
+        // It may have been a list instead
+        var ServerPacks []ServerPackage
+        err = json.Unmarshal(byteArr[:], &ServerPacks)
+        if err != nil {
+            log.Println(err)
+        }
+        return ServerPacks
+    }
+    return []ServerPackage{ServerPack}
 }

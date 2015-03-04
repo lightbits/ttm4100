@@ -1,0 +1,38 @@
+Made using: https://www.websequencediagrams.com/
+
+title Client main loop
+main->socket: connectToServer
+main->listenForMessages: run
+main->listenForUserInput: run
+loop 
+ alt User input
+
+  listenForUserInput->main: user_input
+  main->MessageParser: clientPackToNetworkPacket
+  MessageParser-->main: byte[]
+  main->socket: send(byte[])
+
+ else Server response
+  listenToClient->main: incoming_message
+  main->MessageParser: networkPackageToServerPack
+  MessageParser-->main: ServerPack
+
+  alt history
+    main->main: printHistory
+  else message
+    main->main: printMessage
+  else info
+    main->main: printInfo
+  else error
+    main->main: printError
+  end
+ end
+
+
+
+end
+
+
+
+
+

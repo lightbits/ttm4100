@@ -34,7 +34,7 @@ func listenForUserInput(user_input chan string) {
 func main() {
     // TODO: Take server address as user input?
 
-    remote, err := net.ResolveTCPAddr("tcp", "127.0.0.1:12345")
+    remote, err := net.ResolveTCPAddr("tcp", "78.91.16.129:12345")
     if err != nil {
         log.Fatal(err)
     }

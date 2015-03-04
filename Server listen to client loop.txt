@@ -1,0 +1,12 @@
+Lagd ved hjelp av: https://www.websequencediagrams.com/
+
+
+title Server listen to client loop
+
+loop 
+ listenToClient->socket: read
+ socket-->listenToClient: byte[]
+ listenToClient->MessageParser: networkPackageToClientPackage
+ MessageParser-->listenToClient: ClientPack 
+ listenToClient->main: IncomingClientRequest
+end

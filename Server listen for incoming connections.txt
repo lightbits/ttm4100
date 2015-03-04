@@ -1,0 +1,17 @@
+Made using https://www.websequencediagrams.com/
+
+title Server listen for incoming connections 
+listenForIncomingConnections->socket: setToListenState
+loop 
+ listenForIncomingConnections->socket: accept
+ socket --> listenForIncomingConnections: conn
+ listenForIncomingConnections->main: incoming_connection
+end
+
+
+
+
+
+
+
+

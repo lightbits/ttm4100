@@ -1,0 +1,39 @@
+Made using https://www.websequencediagrams.com/
+
+
+title Server main loop
+main->listenForIncomingConnections: run
+
+loop 
+ alt New connection
+  listenForIncomingConnections->main: incoming_connection
+  main->listenToClient: run
+ else Request
+  listenToClient->main: incoming_request
+  main->MessageParser: networkPackageToClientPack
+  MessageParser-->main: ClientPack
+
+
+
+  alt login
+    main->main: addToConnections
+    main->main: sendHistory
+  else logout
+    main->main: removeFromConnections
+  else msg
+    loop for all clients
+    main->listenToClient: sendmsg
+    end
+  else names
+    main->main: sendNames
+  else help
+    main->main: sendHelp
+  end
+ end
+
+
+
+end
+
+
+

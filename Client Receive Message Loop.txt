@@ -1,0 +1,12 @@
+Lagd ved hjelp av: https://www.websequencediagrams.com/
+
+
+title Receive message loop
+
+loop 
+ listenForMessages->socket: read
+ socket-->listenForMessages: byte[]
+ listenForMessages->MessageParser: networkPackageToServerPack
+ MessageParser-->listenForMessages: ServerPack 
+ listenForMessages->main: incomingmessage 
+end

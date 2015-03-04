@@ -4,90 +4,19 @@ import (
     "log"
     "fmt"
     "net"
-    "encoding/json"
+    "strings"
+    "./coding"
     "time"
 )
 
 // TODO: Should this be configurable on startup?
 const SV_LISTEN_ADDRESS = "127.0.0.1:12345"
 
-//----ENCODING START
-type InternalClientPackage struct {
-    Connection *net.TCPConn
-    Payload     ClientPackage
-}
-
-type ClientPackage struct {
-    Request string
-    Content string
-}
-
-type ServerPackage struct {
-    Timestamp string
-    Sender    string
-    Response  string
-    Content   string
-}
-
-func clientPackToNetworkPackage(pack ClientPackage) []byte {
-    byteArr, err := json.Marshal(pack)
-    if err != nil {log.Println(err)}
-    return byteArr
-}
-
-func serverPackToNetworkPackage(pack ServerPackage) []byte {
-    byteArr, err := json.Marshal(pack)
-    if err != nil {log.Println(err)}
-    return byteArr
-}
-
-func networkPackageToClientPack(byteArr []byte) ClientPackage {
-    var ClientPack ClientPackage
-    err := json.Unmarshal(byteArr[:], &ClientPack)
-    if(err != nil) {log.Println(err)}
-    return ClientPack
-}
-
-func networkPackageToServerPack(byteArr []byte) ServerPackage {
-    var ServerPack ServerPackage
-    err := json.Unmarshal(byteArr[:], &ServerPack)
-    if (err != nil) {log.Println(err)}
-    return ServerPack
-}
-
-func validClientPack(p ClientPackage) bool {
-    if (p.Request != "login" && p.Request != "logout" && p.Request != "msg" && p.Request != "names" && p.Request != "help"){
-        return false
-    }
-    return true
-}
-
-func validServerPack(p ServerPackage) bool {
-    if (p.Response != "error" && p.Response!="info" && p.Response!="history" && p.Response!="message"){
-        return false
-    }
-    return true
-}
-
-func printClientPackage(pack ClientPackage){
-    fmt.Println("Request = ", pack.Request)
-    fmt.Println("Content = ", pack.Content)
-}
-
-func printServerPackage(pack ServerPackage){
-    fmt.Println("Timestamp = ", pack.Timestamp)
-    fmt.Println("Sender = ",    pack.Sender)
-    fmt.Println("Resonse = ",   pack.Response)
-    fmt.Println("Content = ",   pack.Content)
-}
-
 func getTime() string{
     const layout = "Jan 2, 2006 kl 02:00"
     return time.Now().Format(layout)
 }
-//-----ENCODING END
 
-//-----SUBFUNCTIONS START
 func listenForIncomingConnections(incoming_connection chan *net.TCPConn) {
     local, err := net.ResolveTCPAddr("tcp", SV_LISTEN_ADDRESS)
     if err != nil {
@@ -108,7 +37,12 @@ func listenForIncomingConnections(incoming_connection chan *net.TCPConn) {
     }
 }
 
-func listenToClient(incoming_cl_packet chan InternalClientPackage, conn *net.TCPConn) {
+type IncomingClientRequest struct {
+    Socket  *net.TCPConn
+    Payload coding.ClientPackage
+}
+
+func listenToClient(incoming_request chan IncomingClientRequest, conn *net.TCPConn) {
     for {
         buffer := make([]byte, 1024)
         bytes_read, err := conn.Read(buffer)
@@ -116,42 +50,121 @@ func listenToClient(incoming_cl_packet chan InternalClientPackage, conn *net.TCP
             fmt.Println(conn.RemoteAddr(), "lost connection")
             return
         }
-        incoming_cl_packet <- InternalClientPackage{conn, networkPackageToClientPack(buffer[:bytes_read])}
+        payload := coding.NetworkPacketToClientPackage(buffer[:bytes_read])
+        request := IncomingClientRequest{conn, payload}
+        incoming_request <- request
     }
 }
 
 func sendToClient(sender, response, content string, conn *net.TCPConn) {
-    _, err := conn.Write(serverPackToNetworkPackage( ServerPackage{getTime(), sender, response, content} ))
+    srv_struct := coding.ServerPackage{getTime(), sender, response, content}
+    net_packet := coding.ServerPackageToNetworkPacket(srv_struct)
+    _, err := conn.Write(net_packet)
     if err != nil {
         log.Fatal(err)
     }
 }
 
-//----SUBFUNCTIONS END
+type Connection struct {
+    Socket   *net.TCPConn
+    Username string
+}
+
+type MessageHistoric struct {
+    Username string
+    Message string
+}
 
 func main() {
-    connections         := make(map[*net.TCPConn]string)
+    connections         := make(map[string]Connection)
     incoming_connection := make(chan *net.TCPConn)
-    incoming_cl_packet  := make(chan InternalClientPackage)
+    incoming_requests   := make(chan IncomingClientRequest)
+    message_history     := make([]MessageHistoric, 0)
 
     go listenForIncomingConnections(incoming_connection)
     fmt.Println("Ready for incoming connections. Bring it on!")
     for {
         select {
-            case conn := <- incoming_connection:
-                connections[conn] = "" // Initial username
-                go listenToClient(incoming_cl_packet, conn)
-                fmt.Println(conn.RemoteAddr(), "connected")
+            case socket := <- incoming_connection:
+                address := socket.RemoteAddr().String()
+                connections[address] = Connection{socket, ""}
+                go listenToClient(incoming_requests, socket)
+                fmt.Println(address, "connected")
 
-            case ClientPacket := <- incoming_cl_packet:
-                who := ClientPacket.Connection.RemoteAddr() //ip-adress
-                fmt.Println("Recived a packet from: ", who.String())
-                printClientPackage(ClientPacket.Payload)
+            case client_request := <- incoming_requests:
+                socket  := client_request.Socket
+                address := socket.RemoteAddr().String()
+                request := client_request.Payload.Request
+                content := client_request.Payload.Content
+                switch (request) {
+                    case "login":
+
+                        connections[address] = Connection{socket, content}
+                        sendToClient("server", "info", fmt.Sprintf("Your username is now %s", content), socket)
+
+                        // TODO: Fix this
+                        for _, h := range(message_history) {
+                            sendToClient(h.Username, "message", h.Message, socket)
+                        }
+
+                    case "logout":
+                        sendToClient("server", "info", "Goodbye!", socket)
+                        connections[address].Socket.Close()
+                        delete(connections, address)
+
+                    case "msg":
+
+                        username := connections[address].Username
+                        if username == "" {
+                            sendToClient("server", "error", "You must /login first.", socket)
+                        } else {
+                            h := MessageHistoric{username, content}
+                            message_history = append(message_history, h)
+
+                            for dst_address, connection := range(connections) {
+                                dst_socket := connection.Socket
+                                if dst_address != address {
+                                    sendToClient(username, "message", content, dst_socket)
+                                }
+                            }
+                        }
+
+
+                    case "names":
+
+                        name_list := make([]string, len(connections))
+                        i := 0
+                        for _, connection := range(connections) {
+                            username := connection.Username
+                            if username == "" {
+                                name_list[i] = "Noname"
+                            } else {
+                                name_list[i] = username
+                            }
+                            i++
+                        }
+
+                        names := strings.Join(name_list, ", ")
+
+                        sendToClient("server", "info", names, socket)
+
+                    case "help":
+
+                        help := "The following commands are recognized by the server:\n/login <username>: Login with given username\n/logout: Disconnect from server\n/msg <message>: Send a message to everyone else\n/names: Get a list of people connected\n/help: See this list again."
+                        sendToClient("server", "info", help, socket)
+
+                    default:
+                        sendToClient("server", "error", "Unknown command.", socket)
+                }
+                fmt.Println("Recived a packet from:", address)
+                fmt.Println("request:", request)
+                fmt.Println("content:", content)
+                fmt.Println()
         }
     }
 
-    for conn := range(connections) {
-        conn.Close()
+    for _, connection := range(connections) {
+        connection.Socket.Close()
     }
-    fmt.Println("All connections closed. I´l take the day off")
+    fmt.Println("All connections closed. I´ll take the day off")
 }

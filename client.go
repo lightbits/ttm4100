@@ -6,70 +6,18 @@ import (
     "fmt"
     "bufio"
     "os"
-    "time"
     "strings"
-    "encoding/json"
+    "./coding"
 )
 
-//----ENCODING START
-type ClientPackage struct {
-    Request string
-    Content string
-}
-
-type ServerPackage struct {
-    Timestamp string
-    Sender string
-    Response string
-    Content string
-}
-
-func clientPackToNetworkPackage(pack ClientPackage) []byte {
-    byteArr, err := json.Marshal(pack)
-    if err != nil {log.Println(err)}
-    return byteArr
-}
-
-func networkPackageToServerPack(byteArr []byte) ServerPackage {
-    var ServerPack ServerPackage
-    err := json.Unmarshal(byteArr[:], &ServerPack)
-    if (err != nil) {log.Println(err)}
-    return ServerPack
-}
-
-func validServerPack(p ServerPackage) bool {
-    if (p.Response != "error" && p.Response!="info" && p.Response!="history" && p.Response!="message"){
-        return false
-    }
-    return true
-}
-
-func printClientPackage(pack ClientPackage){
-    fmt.Println("Request = ",pack.Request)
-    fmt.Println("Content = ",pack.Content)
-}
-
-func printServerPackage(pack ServerPackage){
-    fmt.Println("Timestamp = ",pack.Timestamp)
-    fmt.Println("Sender = ", pack.Sender)
-    fmt.Println("Resonse = ", pack.Response)
-    fmt.Println("Content = ",pack.Content)
-}
-
-func getTime() string{
-    const layout = "Jan 2, 2006 kl 02:00"
-    return time.Now().Format(layout)
-}
-//-----ENCODING END
-
-func listenForMessages(incoming_message chan ServerPackage, conn *net.TCPConn) {
+func listenForMessages(incoming_message chan coding.ServerPackage, conn *net.TCPConn) {
     for {
         buffer := make([]byte, 1024)
         bytes_read, err := conn.Read(buffer)
         if err != nil {
             log.Fatal(err)
         }
-        incoming_message <- networkPackageToServerPack(buffer[:bytes_read])
+        incoming_message <- coding.NetworkPacketToServerPackage(buffer[:bytes_read])
     }
 }
 
@@ -85,14 +33,14 @@ func listenForUserInput(user_input chan string) {
     }
 }
 
-func sendToServer(payload ClientPackage, conn *net.TCPConn) {
-    _, err := conn.Write(clientPackToNetworkPackage(payload))
+func sendToServer(payload coding.ClientPackage, conn *net.TCPConn) {
+    _, err := conn.Write(coding.ClientPackageToNetworkPacket(payload))
     if err != nil {
         log.Fatal(err)
     }
 }
 
-func parseUserInput(input string) ClientPackage {
+func parseUserInput(input string) coding.ClientPackage {
     request := ""
     content := ""
 
@@ -118,11 +66,11 @@ func parseUserInput(input string) ClientPackage {
         content = input
     }
 
-    return ClientPackage{request, content}
+    return coding.ClientPackage{request, content}
 }
 
-func prettyPrintClientMessage(username string, content string) {
-    fmt.Printf("\x1b[35m%s\x1b[0m said: %s\n", username, content)
+func prettyPrint(when, username, content string) {
+    fmt.Printf("At \x1b[30;1m%s \x1b[35m%s\x1b[0m said: %s\n", when, username, content)
 }
 
 func main() {
@@ -140,9 +88,7 @@ func main() {
     defer conn.Close()
     log.Println("Connected to", conn.RemoteAddr())
 
-    prettyPrintClientMessage("John doe", "Hey guys!")
-
-    incoming_message := make(chan ServerPackage)
+    incoming_message := make(chan coding.ServerPackage)
     go listenForMessages(incoming_message, conn)
 
     user_input := make(chan string)
@@ -150,8 +96,24 @@ func main() {
 
     for {
         select {
-            case msg := <- incoming_message:
-                printServerPackage(msg)
+            case server_response := <- incoming_message:
+                response  := server_response.Response
+                content   := server_response.Content
+                sender    := server_response.Sender
+                timestamp := server_response.Timestamp
+                switch (response) {
+                case "history":
+                    prettyPrint(timestamp, sender, content)
+                case "message":
+                    prettyPrint(timestamp, sender, content)
+                case "info":
+                    prettyPrint(timestamp, sender, content)
+                case "error":
+                    prettyPrint(timestamp, sender, content)
+                default:
+                    fmt.Println("Unknown server response")
+                }
+                fmt.Printf(">> ")
 
             case input := <- user_input:
                 payload := parseUserInput(input)

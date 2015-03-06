@@ -116,7 +116,7 @@ func main() {
 
                         username := connections[address].Username
                         if username == "" {
-                            sendToClient("server", "error", "You must /login first.", socket)
+                            sendToClient("server", "error", "You must login first.", socket)
                         } else {
                             message_history = append(message_history, coding.ServerPackage{getTime(), username, "message", content})
 
@@ -149,7 +149,7 @@ func main() {
 
                     case "help":
 
-                        help := "The following commands are recognized by the server:\n/login <username>: Login with given username\n/logout: Disconnect from server\n/msg <message>: Send a message to everyone else\n/names: Get a list of people connected\n/help: See this list again."
+                        help := "The following commands are recognized by the server:\nlogin <username>: Login with given username\nlogout: Disconnect from server\nmsg <message>: Send a message to everyone else (If you do not use any command prefix, if will be recognized as a message)\nnames: Get a list of people connected\nhelp: See this list again."
                         sendToClient("server", "info", help, socket)
 
                     default:

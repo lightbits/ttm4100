@@ -11,7 +11,7 @@ import (
     "runtime"
     "./coding"
 )
-const DEBUG = true
+const DEBUG = false
 
 func listenForMessages(incoming_message chan coding.ServerPackage, connection_terminated chan bool, conn *net.TCPConn) {
     buffer := make([]byte, 2048)
@@ -19,7 +19,7 @@ func listenForMessages(incoming_message chan coding.ServerPackage, connection_te
         bytes_read, err := conn.Read(buffer)
         if err != nil {
              if DEBUG {
-                log.Fatal(err)
+                log.Println(err)
             }
             conn.Close()
             fmt.Println("Lost connection with server")
@@ -80,32 +80,6 @@ func parseUserInput(input string) coding.ClientPackage {
         log.Println("Payload: ", content)
     }
     return coding.ClientPackage{request, content}
-/*
-    ---
-    User input is of the form
-        /request content
-    If the /request field is not given,
-    we interpret the input as a <msg> payload
-    with content = input.
-    ---
-
-    req_begin := strings.Index(input, "/")
-    log.Println("Req start: ", req_begin)
-    if req_begin >= 0 {
-        req_end := strings.Index(input[req_begin:], " ")
-        log.Println("Req end: " ,req_end)
-        if req_end > req_begin {
-            request = input[req_begin + 1 : req_end]
-            content = input[req_end + 1 :]
-        } else {
-            request = input[req_begin + 1 :]
-            content = ""
-        }
-    } else {
-        request = "msg"
-        content = input
-    }
-*/
 }
 
 func prettyPrint(when, username, content string) {
@@ -152,14 +126,24 @@ func chatClient(incoming_message chan coding.ServerPackage, connection_terminate
                 userInputTrigger <- 1
             }
         case <- connection_terminated:
+            fmt.Printf("Trying to reconnect to server")
+            var numOfAttempst int
             for{
-                fmt.Println("Trying to reconnect to server")
                 conn, err := connectToServer(serverAdr)
                 if err != nil {
                     if DEBUG {
                         log.Println(err)
+                    }else{
+                        fmt.Printf(".")
+                    }
+                    numOfAttempst++
+                    if(numOfAttempst > 60){
+                        fmt.Printf("\n")
+                        fmt.Println("Closing down BabySeal client")
+                        os.Exit(0)
                     }
                 }else{
+                    fmt.Printf("\n")
                     defer conn.Close()
                     fmt.Println("Reconnected to server :)")
                     go listenForMessages(incoming_message,connection_terminated, conn)

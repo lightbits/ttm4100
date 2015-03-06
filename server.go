@@ -149,7 +149,7 @@ func main() {
 
                     case "help":
 
-                        help := "The following commands are recognized by the server:\nlogin <username>: Login with given username\nlogout: Disconnect from server\nmsg <message>: Send a message to everyone else (If you do not use any command prefix, if will be recognized as a message)\nnames: Get a list of people connected\nhelp: See this list again."
+                        help := "The following commands are recognized by the server:\nlogin <username>: Login with given username\nlogout: Disconnect from server\nmsg <message>: Send a message to everyone else (If you do not use any command prefix, it will be recognized as a message)\nnames: Get a list of people connected\nhelp: See this list again."
                         sendToClient("server", "info", help, socket)
 
                     default:

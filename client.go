@@ -8,6 +8,7 @@ import (
     "os"
     "time"
     "encoding/json"
+    "strings"
 )
 
 //----ENCODING START
@@ -21,6 +22,11 @@ type ServerPackage struct {
     Sender string
     Response string
     Content string
+}
+
+type userInputPack struct {
+    Command string
+    Payload string
 }
 
 func clientPackToNetworkPackage(pack ClientPackage) []byte {
@@ -72,15 +78,34 @@ func listenForMessages(incoming_message chan ServerPackage, conn *net.TCPConn) {
     }
 }
 
-func listenForUserInput(user_input chan string) {
+func listenForUserInput(user_input chan userInputPack, userInputTrigger chan int) {
     reader := bufio.NewReader(os.Stdin)
-    for {
-        fmt.Printf("Enter text: ")
-        line, _, err := reader.ReadLine()
-        if err != nil {
-            fmt.Println(err)
+    for{
+        select{
+        case <- userInputTrigger:
+                fmt.Printf("Enter text: ")
+                line, _, err := reader.ReadLine()
+                if err != nil {
+                    log.Println(err)
+                }
+                streng := strings.TrimSpace(string(line))
+                splitIndex := strings.Index(streng," ")
+                var c, p string
+                if splitIndex != -1 {
+                    c = streng[:splitIndex]
+                    if splitIndex != len(streng) {
+                        p = streng[splitIndex+1:]
+                    }else{
+                        p = ""
+                    }                   
+                }else{
+                    c = streng
+                    p = ""
+                }
+                log.Println("Command: ", c)
+                log.Println("Payload: ", p)
+                user_input <- userInputPack{c,p}
         }
-        user_input <- string(line)
     }
 }
 
@@ -110,28 +135,49 @@ func main() {
     incoming_message := make(chan ServerPackage)
     go listenForMessages(incoming_message, conn)
 
-    user_input := make(chan string)
-    go listenForUserInput(user_input)
+    user_input := make(chan userInputPack)
+    userInputTrigger := make(chan int)
+    go listenForUserInput(user_input, userInputTrigger)
+
+   
+    var waitingOnServer bool = false
+    userInputTrigger <- 1
 
     for {
         select {
             case msg := <- incoming_message:
                 log.Println("Received message from server")
                 printServerPackage(msg)
-
+                waitingOnServer = false
+           
             case input := <- user_input:
-                switch "input"{
-                case "login":
-                    sendToServer("login","",conn)
-                case "logout":
-                    sendToServer("logout","",conn)
-                case "msg":
-                    sendToServer("msg",input,conn)
-                case "names":
-                    sendToServer("names","",conn)
-                case "help":
-                    sendToServer("help", "",conn)
-            }
+                switch input.Command {
+                    case "login":
+                        sendToServer("login","",conn)
+                        waitingOnServer = true
+                    case "logout":
+                        sendToServer("logout","",conn)
+                        waitingOnServer = true
+                    case "msg":
+                        sendToServer("msg",input.Payload,conn)
+                        waitingOnServer = true
+                    case "names":
+                        sendToServer("names","",conn)
+                        waitingOnServer = true
+                    case "help":
+                        sendToServer("help", "",conn)
+                        waitingOnServer = true
+                    default:
+                        fmt.Println("Ugyldig kommando")
+                        waitingOnServer = false
+                        userInputTrigger <- 1
+                }
+            case <- time.After(3 * time.Second):
+                if(waitingOnServer){
+                    waitingOnServer = false
+                    fmt.Println("waitingOnServer timed out")
+                    userInputTrigger <- 1
+                }
         }
     }
 }

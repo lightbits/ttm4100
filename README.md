@@ -5,6 +5,11 @@ How to use client/server
 ------------------------
 1. go run server.go in one console
 2. go run client.go in another
+
+	* Write messages in the format /request content
+	* If no /request is given your input is interpreted
+	  to be a msg request.
+
 3. yayifications!
 
 Todo
@@ -19,9 +24,9 @@ Server and client
 Client
 * Take server ip address as user input in chat client
 * Only accept messages of form
-	- /login <username>
+	- /login username
 	- /logout
-	- /msg <message> (this is default if no /* is specified)
+	- /msg message (this is default if no /* is specified)
 	- /names
 	- /help
 * Parse server response

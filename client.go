@@ -6,114 +6,74 @@ import (
     "fmt"
     "bufio"
     "os"
-    "time"
-    "encoding/json"
     "strings"
+    "./coding"
 )
 
-//----ENCODING START
-type ClientPackage struct {
-    Request string
-    Content string
-}
-
-type ServerPackage struct {
-    Timestamp string
-    Sender string
-    Response string
-    Content string
-}
-
-type userInputPack struct {
-    Command string
-    Payload string
-}
-
-func clientPackToNetworkPackage(pack ClientPackage) []byte {
-    byteArr, err := json.Marshal(pack)
-    if err != nil {log.Println(err)}
-    return byteArr
-}
-
-func networkPackageToServerPack(byteArr []byte) ServerPackage {
-    var ServerPack ServerPackage
-    err := json.Unmarshal(byteArr[:], &ServerPack)
-    if (err != nil) {log.Println(err)}
-    return ServerPack
-}
-
-func validServerPack(p ServerPackage) bool {
-    if (p.Response != "error" && p.Response!="info" && p.Response!="history" && p.Response!="message"){
-        return false
-    }
-    return true
-}
-
-func printClientPackage(pack ClientPackage){
-    fmt.Println("Request = ",pack.Request)
-    fmt.Println("Content = ",pack.Content)
-}
-
-func printServerPackage(pack ServerPackage){
-    fmt.Println("Timestamp = ",pack.Timestamp)
-    fmt.Println("Sender = ", pack.Sender)
-    fmt.Println("Resonse = ", pack.Response)
-    fmt.Println("Content = ",pack.Content)
-}
-
-func getTime() string{
-    const layout = "Jan 2, 2006 kl 02:00"
-    return time.Now().Format(layout)
-}
-//-----ENCODING END
-
-func listenForMessages(incoming_message chan ServerPackage, conn *net.TCPConn) {
+func listenForMessages(incoming_message chan coding.ServerPackage, conn *net.TCPConn) {
     for {
         buffer := make([]byte, 1024)
         bytes_read, err := conn.Read(buffer)
         if err != nil {
             log.Fatal(err)
         }
-        incoming_message <- networkPackageToServerPack(buffer[:bytes_read])
-    }
-}
-
-func listenForUserInput(user_input chan userInputPack, userInputTrigger chan int) {
-    reader := bufio.NewReader(os.Stdin)
-    for{
-        select{
-        case <- userInputTrigger:
-                fmt.Printf("Enter text: ")
-                line, _, err := reader.ReadLine()
-                if err != nil {
-                    log.Println(err)
-                }
-                streng := strings.TrimSpace(string(line))
-                splitIndex := strings.Index(streng," ")
-                var c, p string
-                if splitIndex != -1 {
-                    c = streng[:splitIndex]
-                    if splitIndex != len(streng) {
-                        p = streng[splitIndex+1:]
-                    }else{
-                        p = ""
-                    }                   
-                }else{
-                    c = streng
-                    p = ""
-                }
-                log.Println("Command: ", c)
-                log.Println("Payload: ", p)
-                user_input <- userInputPack{c,p}
+        packages := coding.NetworkPacketToServerPackages(buffer[:bytes_read])
+        for _, p := range(packages) {
+            incoming_message <- p
         }
     }
 }
 
-func sendToServer(request, content string, conn *net.TCPConn) {
-    _, err := conn.Write(clientPackToNetworkPackage( ClientPackage{request, content} ))
+func listenForUserInput(user_input chan string) {
+    reader := bufio.NewReader(os.Stdin)
+    for {
+        fmt.Printf(">> ")
+        line, _, err := reader.ReadLine()
+        if err != nil {
+            fmt.Println(err)
+        }
+        user_input <- string(line)
+    }
+}
+
+func sendToServer(payload coding.ClientPackage, conn *net.TCPConn) {
+    _, err := conn.Write(coding.ClientPackageToNetworkPacket(payload))
     if err != nil {
         log.Fatal(err)
     }
+}
+
+func parseUserInput(input string) coding.ClientPackage {
+    request := ""
+    content := ""
+
+    /*
+    User input is of the form
+        /request content
+    If the /request field is not given,
+    we interpret the input as a <msg> payload
+    with content = input.
+    */
+    req_begin := strings.Index(input, "/")
+    if req_begin >= 0 {
+        req_end := strings.Index(input[req_begin:], " ")
+        if req_end > req_begin {
+            request = input[req_begin + 1 : req_end]
+            content = input[req_end + 1 :]
+        } else {
+            request = input[req_begin + 1 :]
+            content = ""
+        }
+    } else {
+        request = "msg"
+        content = input
+    }
+
+    return coding.ClientPackage{request, content}
+}
+
+func prettyPrint(when, username, content string) {
+    fmt.Printf("At \x1b[30;1m%s \x1b[35m%s\x1b[0m said: %s\n", when, username, content)
 }
 
 func main() {
@@ -129,55 +89,38 @@ func main() {
         log.Fatal(err)
     }
     defer conn.Close()
-
     log.Println("Connected to", conn.RemoteAddr())
 
-    incoming_message := make(chan ServerPackage)
+    incoming_message := make(chan coding.ServerPackage)
     go listenForMessages(incoming_message, conn)
 
-    user_input := make(chan userInputPack)
-    userInputTrigger := make(chan int)
-    go listenForUserInput(user_input, userInputTrigger)
-
-   
-    var waitingOnServer bool = false
-    userInputTrigger <- 1
+    user_input := make(chan string)
+    go listenForUserInput(user_input)
 
     for {
         select {
-            case msg := <- incoming_message:
-                log.Println("Received message from server")
-                printServerPackage(msg)
-                waitingOnServer = false
-           
+            case server_response := <- incoming_message:
+                response  := server_response.Response
+                content   := server_response.Content
+                sender    := server_response.Sender
+                timestamp := server_response.Timestamp
+                switch (response) {
+                case "history":
+                    prettyPrint(timestamp, sender, content)
+                case "message":
+                    prettyPrint(timestamp, sender, content)
+                case "info":
+                    prettyPrint(timestamp, sender, content)
+                case "error":
+                    prettyPrint(timestamp, sender, content)
+                default:
+                    fmt.Println("Unknown server response")
+                }
+                fmt.Printf(">> ")
+
             case input := <- user_input:
-                switch input.Command {
-                    case "login":
-                        sendToServer("login","",conn)
-                        waitingOnServer = true
-                    case "logout":
-                        sendToServer("logout","",conn)
-                        waitingOnServer = true
-                    case "msg":
-                        sendToServer("msg",input.Payload,conn)
-                        waitingOnServer = true
-                    case "names":
-                        sendToServer("names","",conn)
-                        waitingOnServer = true
-                    case "help":
-                        sendToServer("help", "",conn)
-                        waitingOnServer = true
-                    default:
-                        fmt.Println("Ugyldig kommando")
-                        waitingOnServer = false
-                        userInputTrigger <- 1
-                }
-            case <- time.After(3 * time.Second):
-                if(waitingOnServer){
-                    waitingOnServer = false
-                    fmt.Println("waitingOnServer timed out")
-                    userInputTrigger <- 1
-                }
+                payload := parseUserInput(input)
+                sendToServer(payload, conn)
         }
     }
 }

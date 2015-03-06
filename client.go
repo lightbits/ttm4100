@@ -31,7 +31,7 @@ func listenForMessages(incoming_message chan coding.ServerPackage, connection_te
 func listenForUserInput(user_input chan string) {
     reader := bufio.NewReader(os.Stdin)
     for {
-        fmt.Printf(">> ")
+        fmt.Printf(">>")
         line, _, err := reader.ReadLine()
         if err != nil {
             fmt.Println(err)
@@ -71,7 +71,7 @@ func parseUserInput(input string) (coding.ClientPackage) {
 }
 
 func prettyPrint(when, username, content string) {
-    fmt.Printf("At \x1b[30;1m%s \x1b[35m%s\x1b[0m said: %s\n", when, username, content)
+    fmt.Printf("At \x1b[30;1m%s \x1b[35m%s\x1b[0m said: %s\n>>", when, username, content)
 }
 
 // This will block until we actually connect!
@@ -126,7 +126,7 @@ func main() {
                 case "error":
                     prettyPrint(timestamp, sender, content)
                 default:
-                    fmt.Println("Unknown server response")
+                    log.Fatal("Unknown server response")
             }
 
         case input := <- user_input:

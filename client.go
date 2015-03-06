@@ -8,45 +8,35 @@ import (
     "bufio"
     "os"
     "strings"
-    "runtime"
     "./coding"
 )
-const DEBUG = false
 
 func listenForMessages(incoming_message chan coding.ServerPackage, connection_terminated chan bool, conn *net.TCPConn) {
     buffer := make([]byte, 2048)
     for {
         bytes_read, err := conn.Read(buffer)
         if err != nil {
-             if DEBUG {
-                log.Println(err)
-            }
             conn.Close()
             fmt.Println("Lost connection with server")
             connection_terminated <- true
-            break
-        }else{
-            packages := coding.NetworkPacketToServerPackages(buffer[:bytes_read])
-            for _, p := range(packages) {
-                incoming_message <- p
-            }
+            return
         }
-        time.Sleep(100 * time.Millisecond)
+        packages := coding.NetworkPacketToServerPackages(buffer[:bytes_read])
+        for _, p := range(packages) {
+            incoming_message <- p
+        }
     }
 }
 
-func listenForUserInput(user_input chan string, userInputTrigger chan int) {
+func listenForUserInput(user_input chan string) {
     reader := bufio.NewReader(os.Stdin)
     for {
-        select{
-            case <- userInputTrigger:
-                fmt.Printf(">> ")
-                line, _, err := reader.ReadLine()
-                if err != nil {
-                    log.Fatal(err)
-                }
-                user_input <- strings.TrimSpace(string(line))
+        fmt.Printf(">> ")
+        line, _, err := reader.ReadLine()
+        if err != nil {
+            fmt.Println(err)
         }
+        user_input <- string(line)
     }
 }
 
@@ -58,118 +48,64 @@ func sendToServer(payload coding.ClientPackage, conn *net.TCPConn) {
     }
 }
 
-func parseUserInput(input string) (coding.ClientPackage, bool) {
+func parseUserInput(input string) (coding.ClientPackage) {
+
     request := ""
     content := ""
-    waitingOnServer := true
-    splitIndex := strings.Index(input," ")
-    if splitIndex == -1 { //one word
-        switch strings.ToLower(input){
-        case "msg":
-            waitingOnServer = false
-            fallthrough
-        case "login","logout","names","help":
-            request = strings.ToLower(input)
-        default:
-            request = "msg"
-            content = input
-            waitingOnServer = false
+    req_begin := strings.Index(input, "/")
+    if req_begin >= 0 {
+        req_end := strings.Index(input[req_begin:], " ")
+        if req_end > req_begin {
+            request = input[req_begin + 1 : req_end]
+            content = input[req_end + 1 :]
+        } else {
+            request = input[req_begin + 1 :]
+            content = ""
         }
-    }else { //more than one word
-        switch strings.ToLower(input[:splitIndex]){
-            case "msg":
-                waitingOnServer = false
-                fallthrough
-            case "login","logout","names","help":
-                request = strings.ToLower(input[:splitIndex])
-                if splitIndex != len(input) { //actually a part two
-                    content = input[splitIndex+1:]
-                }
-            default:
-                request = "msg"
-                content = input
-                waitingOnServer = false
-        }
+    } else {
+        request = "msg"
+        content = input
     }
-    if DEBUG {
-        log.Println("Command: ", request)
-        log.Println("Payload: ", content)
-    }
-    return coding.ClientPackage{request, content}, waitingOnServer
+
+    return coding.ClientPackage{request, content}
 }
 
 func prettyPrint(when, username, content string) {
     fmt.Printf("At \x1b[30;1m%s \x1b[35m%s\x1b[0m said: %s\n", when, username, content)
 }
 
-func connectToServer(addr string) (*net.TCPConn, error){
+// This will block until we actually connect!
+func connectToServer(addr string) (*net.TCPConn){
     remote, err := net.ResolveTCPAddr("tcp", addr)
     if err != nil {
-        if DEBUG {
-            log.Println("Not a valid server adress")
-        }
-        return nil, err
-    }else{
+        log.Fatal(err)
+    }
+
+    for {
         conn, err := net.DialTCP("tcp", nil, remote)
-        if err != nil {
-            if DEBUG {
-                log.Println("Could not connect to server")
-                log.Println(err)
-            }
-            return nil, err
-        }else{
-            if DEBUG {
-                log.Println("Connected to", conn.RemoteAddr())
-            }
-            return conn, nil
+        if err == nil {
+            return conn
         }
+        log.Println("Could not connect to server. Retrying...")
+        time.Sleep(1 * time.Second)
     }
 }
 
 func main() {
-    runtime.GOMAXPROCS(runtime.NumCPU())
     incoming_message := make(chan coding.ServerPackage)
     connection_terminated := make(chan bool)
-    user_input := make(chan string, 5)
-    userInputTrigger := make(chan int, 5)
+    user_input := make(chan string)
 
     // TODO: Take server address as user input?
-    serverAdr := "127.0.0.1:12345"
+    server_addr := "127.0.0.1:12345"
 
-    var conn *net.TCPConn
-    var err error
-    var countAttempts int = 0
-    
-    for{
-        conn, err = connectToServer(serverAdr)
-        if err != nil {
-            countAttempts++
-            if countAttempts == 1 {
-                fmt.Printf("Connecting to server")
-            }
-            fmt.Printf(".")
-            if countAttempts > 10 {
-                fmt.Printf("\n")
-                fmt.Println("Closing down BabySeal client")
-                os.Exit(0) 
-            }
-            time.Sleep(1 * time.Second)
-        }else{
-            defer conn.Close()
-            if countAttempts > 0 {
-                fmt.Printf("\n")
-            }
-            break
-        }
-    }
+    conn := connectToServer(server_addr)
 
-    go listenForMessages(incoming_message,connection_terminated, conn)    
-    go listenForUserInput(user_input, userInputTrigger)
+    go listenForMessages(incoming_message, connection_terminated, conn)
+    go listenForUserInput(user_input)
 
-    //------Starting client------  
+    //------Starting client------
     fmt.Println("Welcome to BabySeal chat client")
-    var waitingOnServer bool = false
-    userInputTrigger <- 1
     for {
         select {
         case server_response := <- incoming_message:
@@ -192,46 +128,13 @@ func main() {
                 default:
                     fmt.Println("Unknown server response")
             }
-            waitingOnServer = false
-            userInputTrigger <- 1
 
         case input := <- user_input:
-            payload, needToWait := parseUserInput(input)
+            payload := parseUserInput(input)
             sendToServer(payload, conn)
-            waitingOnServer = needToWait
 
-        case <- time.After(2 * time.Second):
-            if(waitingOnServer){
-                waitingOnServer = false
-                fmt.Println("waiting on server timed out")
-                userInputTrigger <- 1
-            }
         case <- connection_terminated:
-            fmt.Printf("Trying to reconnect to server")
-            var numOfAttempst int
-            for{
-                conn, err = connectToServer(serverAdr)
-                if err != nil {
-                    if DEBUG {
-                        log.Println(err)
-                    }else{
-                        fmt.Printf(".")
-                    }
-                    numOfAttempst++
-                    if(numOfAttempst > 60){
-                        fmt.Printf("\n")
-                        fmt.Println("Closing down BabySeal client")
-                        os.Exit(0)
-                    }
-                }else{
-                    fmt.Printf("\n")
-                    fmt.Println("Reconnected to server :)")
-                    go listenForMessages(incoming_message,connection_terminated, conn)
-                    userInputTrigger <- 1
-                    break
-                }
-                time.Sleep(1000 * time.Millisecond)
-            }
+            conn = connectToServer(server_addr)
         }
     }
 }

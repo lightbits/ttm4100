@@ -6,6 +6,7 @@ import (
     "net"
     "strings"
     "./coding"
+    "unicode"
     "time"
 )
 
@@ -73,6 +74,22 @@ func sendHistoryToClient(history []coding.ServerPackage, conn *net.TCPConn) {
     }
 }
 
+func isValidUsername(username string) bool {
+    numerals := unicode.Range16{48, 57, 1}
+    upper_a_z := unicode.Range16{65, 90, 1}
+    lower_a_z := unicode.Range16{97, 122, 1}
+    var ranges unicode.RangeTable
+    ranges.R16 = []unicode.Range16{numerals, upper_a_z, lower_a_z}
+    ranges.LatinOffset = 10 + 26 + 26
+
+    for _, rune := range username {
+        if !unicode.In(rune, &ranges) {
+            return false
+        }
+    }
+    return true
+}
+
 type Connection struct {
     Socket   *net.TCPConn
     Username string
@@ -102,10 +119,15 @@ func main() {
                 switch (request) {
                     case "login":
 
-                        connections[address] = Connection{socket, content}
-                        sendToClient("server", "info", fmt.Sprintf("Your username is now %s", content), socket)
+                        if !isValidUsername(content) {
+                            sendToClient("server", "error", "Invalid username", socket)
+                        } else {
+                            connections[address] = Connection{socket, content}
+                            sendToClient("server", "info", fmt.Sprintf("Your username is now %s", content), socket)
 
-                        sendHistoryToClient(message_history, socket)
+                            sendHistoryToClient(message_history, socket)
+                        }
+
 
                     case "logout":
                         sendToClient("server", "info", "Goodbye!", socket)

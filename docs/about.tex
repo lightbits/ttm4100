@@ -32,7 +32,7 @@
         TTM4100 \\
         Chat-prosjekt \\
         \vskip2cm
-        Group 82
+        Gruppe 82
     }
 
    {\large
@@ -49,17 +49,27 @@
 \end{titlepage}
 
 \section{Beskrivelse}
-\subsection{Generelt}Vi har valgt å implementere dette prosjektet i Go, da dette er et språk som har en god idiomatisk støtte for flere-tråd applikasjoner. Kommunikasjonen mellom trådene er basert på kanaler, som gjør deling av data mellom flere tråder enkelt og sikkert. Figur (\ref{class}) viser hovedoppdelingen av prosjektet. Figur (\ref{seq_client}) og (\ref{seq_server}) viser hvordan meldingsflyten typisk vil se ut på klient- og server-siden.
+\subsection{Generelt}
+Vi har valgt å implementere dette prosjektet i Go, da dette er et språk som har en god idiomatisk støtte for flere-tråd applikasjoner. Kommunikasjonen mellom trådene er basert på kanaler, som gjør deling av data mellom flere tråder enkelt og sikkert. Figur (\ref{class}) viser hovedoppdelingen av prosjektet. Figur (\ref{seq_client}) og (\ref{seq_server}) viser hvordan meldingsflyten typisk vil se ut på klient- og server-siden.
 
 \subsection{Klient}
 Klienten kommer til å bestå av tre tråder:
-\begin{enumerate}	\item (main) Kjører initialisering av kommunikasjonskanaler mellom trådene, oppretter TCP-forbindelse med serveren og starter de to andre trådene. Tar imot nettverkspakker fra serveren og håndterer disse, tar imot input fra brukeren (gjennom en kanal) og sender dette videre til serveren.	\item (nettverkslytter) Blir startet med en opprettet TCP-socket og en kommunikasjonskanal som argumenter. Kjører loop på lesing av socketen, og returnerer ferdig dekodede pakker til ”main” gjennom en dedikert kanal.	\item (bruker-input-lytter) Blir startet med en kanal som argument, og bruker denne kanalen til å returnere strenger som brukeren gir gjennom tastaturet.
+\begin{enumerate}
+	\item (main) Kjører initialisering av kommunikasjonskanaler mellom trådene, oppretter TCP-forbindelse med serveren og starter de to andre trådene. Tar imot nettverkspakker fra serveren og håndterer disse, tar imot input fra brukeren (gjennom en kanal) og sender dette videre til serveren.
+	\item (nettverkslytter) Blir startet med en opprettet TCP-socket og en kommunikasjonskanal som argumenter. Kjører loop på lesing av socketen, og returnerer ferdig dekodede pakker til ”main” gjennom en dedikert kanal.
+	\item (bruker-input-lytter) Blir startet med en kanal som argument, og bruker denne kanalen til å returnere strenger som brukeren gir gjennom tastaturet.
 \end{enumerate}
 
-\subsection{Server}Serveren kommer til å bestå av 2 tråder + 1 tråd per bruker:
-\begin{enumerate}	\item (main) Kjører initialisering av kommunikasjonskanaler og starter en ny tråd som tar seg av TCP socket og innkommende forbindelser. Etter initialiseringen tar main seg av all server-logikken:
-	\begin{enumerate}	\item For hver nye TCP-forbindelse som tråd2 får inn, starter main en ny tråd som tar seg av meldinger fra denne brukeren.	\item For hver melding som kommer fra en bruker, returneres respons etter spesifikasjonen.
-	\end{enumerate}	\item (TCP-lytter) Oppretter en TCP-socket som tråden lytter på. Kjører loop: Når en ny klient ønsker å koble seg på, aksepteres denne tilkoblingen og den nye socketen blir sendt til main for videre håndtering.	\item (Bruker-tråd) Opprettes en tråd per bruker som leser socketen til denne brukeren, og returnerer en dekodet pakke til main når den får inn meldinger.
+\subsection{Server}
+Serveren kommer til å bestå av 2 tråder + 1 tråd per bruker:
+\begin{enumerate}
+	\item (main) Kjører initialisering av kommunikasjonskanaler og starter en ny tråd som tar seg av TCP socket og innkommende forbindelser. Etter initialiseringen tar main seg av all server-logikken:
+	\begin{enumerate}
+	\item For hver nye TCP-forbindelse som tråd2 får inn, starter main en ny tråd som tar seg av meldinger fra denne brukeren.
+	\item For hver melding som kommer fra en bruker, returneres respons etter spesifikasjonen.
+	\end{enumerate}
+	\item (TCP-lytter) Oppretter en TCP-socket som tråden lytter på. Kjører loop: Når en ny klient ønsker å koble seg på, aksepteres denne tilkoblingen og den nye socketen blir sendt til main for videre håndtering.
+	\item (Bruker-tråd) Opprettes en tråd per bruker som leser socketen til denne brukeren, og returnerer en dekodet pakke til main når den får inn meldinger.
 \end{enumerate}
 \newpage
 
